@@ -40,7 +40,7 @@ static bool tegra_dvfs_cpu_disabled = true;
 static const int core_millivolts[MAX_DVFS_FREQS] =
 	{950, 1000, 1100, 1200, 1225, 1275, 1300};
 static const int cpu_millivolts[MAX_DVFS_FREQS] =
-	{750, 775, 800, 825, 850, 875, 900, 925, 950, 975, 1000, 1025, 1050, 1100, 1175};
+	{750, 775, 800, 825, 850, 875, 900, 925, 950, 975, 1000, 1175, 1250, 1275, 1300};
 
 static const int cpu_speedo_nominal_millivolts[] =
 /* spedo_id  0,    1,    2 */
@@ -55,24 +55,24 @@ static const int core_speedo_nominal_millivolts[] =
 
 static struct dvfs_rail tegra2_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd_cpu",
-	.max_millivolts = 1175,
+	.max_millivolts = 1300, //1125
 	.min_millivolts = 750,
-	.nominal_millivolts = 1175,
+	.nominal_millivolts = 1300, //1125
 };
 
 static struct dvfs_rail tegra2_dvfs_rail_vdd_core = {
 	.reg_id = "vdd_core",
-	.max_millivolts = 1300,
+	.max_millivolts = 1375, //1300
 	.min_millivolts = 950,
-	.nominal_millivolts = 1225,
+	.nominal_millivolts = 1300, //1225
 	.step = 150, /* step vdd_core by 150 mV to allow vdd_aon to follow */
 };
 
 static struct dvfs_rail tegra2_dvfs_rail_vdd_aon = {
 	.reg_id = "vdd_aon",
-	.max_millivolts = 1300,
+	.max_millivolts = 1375, //1300
 	.min_millivolts = 950,
-	.nominal_millivolts = 1225,
+	.nominal_millivolts = 1300, //1225
 #ifndef CONFIG_TEGRA_CORE_DVFS
 	.disabled = true,
 #endif
@@ -153,24 +153,18 @@ static struct dvfs_rail *tegra2_dvfs_rails[] = {
 	}
 
 static struct dvfs dvfs_init[] = {
-#ifdef CONFIG_TEGRA_OC
-	/* Cpu voltages (mV):	   750, 775, 800, 825, 850, 875,  900,  925,  950,  975,  1000, 1025, 1050, 1100, 1125 */
-	CPU_DVFS("cpu", 0, 0, MHZ, 314, 314, 314, 456, 456, 456,  608,  608,  608,  760,  817,  817,  912,  1000, 1200),
-	CPU_DVFS("cpu", 0, 1, MHZ, 314, 314, 314, 456, 456, 456,  618,  618,  618,  770,  827,  827,  922,  1000, 1200),
-	CPU_DVFS("cpu", 0, 2, MHZ, 494, 494, 494, 675, 675, 817,  817,  922,  922,  1000, 1200),
-	CPU_DVFS("cpu", 0, 3, MHZ, 730, 760, 845, 845, 940, 1000, 1200),
-
-	CPU_DVFS("cpu", 1, 0, MHZ, 380, 380, 503, 503, 655, 655,  798,  798,  902,  902,  960,  1000, 1200),
-	CPU_DVFS("cpu", 1, 1, MHZ, 389, 389, 503, 503, 655, 760,  798,  798,  950,  950,  1000, 1200),
-	CPU_DVFS("cpu", 1, 2, MHZ, 598, 598, 750, 750, 893, 893,  1000, 1200),
-	CPU_DVFS("cpu", 1, 3, MHZ, 730, 760, 845, 845, 940, 1000, 1200),
-#else
 	/* Cpu voltages (mV):	   750, 775, 800, 825, 850, 875,  900,  925,  950,  975,  1000, 1025, 1050, 1100 */
 	CPU_DVFS("cpu", 0, 0, MHZ, 314, 314, 314, 456, 456, 456,  608,  608,  608,  760,  817,  817,  912,  1000),
 	CPU_DVFS("cpu", 0, 1, MHZ, 314, 314, 314, 456, 456, 456,  618,  618,  618,  770,  827,  827,  922,  1000),
 	CPU_DVFS("cpu", 0, 2, MHZ, 494, 494, 494, 675, 675, 817,  817,  922,  922,  1000),
 	CPU_DVFS("cpu", 0, 3, MHZ, 730, 760, 845, 845, 940, 1000),
 
+#ifdef CONFIG_TEGRA_OC
+	CPU_DVFS("cpu", 1, 0, MHZ, 380, 380, 503, 503, 655, 655,  798,  798,  902,  902,  960,  1000, 1200, 1400),
+	CPU_DVFS("cpu", 1, 1, MHZ, 389, 389, 503, 503, 655, 760,  798,  798,  950,  950,  1000, 1200, 1400),
+	CPU_DVFS("cpu", 1, 2, MHZ, 598, 598, 750, 750, 893, 893,  1000, 1200, 1400),
+	CPU_DVFS("cpu", 1, 3, MHZ, 730, 760, 845, 845, 940, 1000, 1200, 1400),
+#else
 	CPU_DVFS("cpu", 1, 0, MHZ, 380, 380, 503, 503, 655, 655,  798,  798,  902,  902,  960,  1000),
 	CPU_DVFS("cpu", 1, 1, MHZ, 389, 389, 503, 503, 655, 760,  798,  798,  950,  950,  1000),
 	CPU_DVFS("cpu", 1, 2, MHZ, 598, 598, 750, 750, 893, 893,  1000),
