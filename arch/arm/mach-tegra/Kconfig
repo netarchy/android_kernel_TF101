@@ -76,7 +76,7 @@ config TEGRA_SPI_SLAVE
          SPI slave driver for NVIDIA Tegra SoCs
 
 config TEGRA_OC
-	bool "Enable 1.2Ghz Overclock"
+	bool "Enable Overclocking"
 	default n
          
 config VENTANA_USB_MASS_STORAGE
