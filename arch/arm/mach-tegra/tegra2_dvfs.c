@@ -40,11 +40,11 @@ static bool tegra_dvfs_cpu_disabled = true;
 static const int core_millivolts[MAX_DVFS_FREQS] =
 	{950, 1000, 1100, 1200, 1225, 1275, 1300};
 static const int cpu_millivolts[MAX_DVFS_FREQS] =
-	{750, 775, 800, 825, 850, 875, 900, 925, 950, 975, 1000, 1175, 1250, 1275, 1300};
+	{750, 775, 800, 825, 850, 875, 900, 925, 950, 975, 1000, 1175, 1275, 1300, 1325};
 
 static const int cpu_speedo_nominal_millivolts[] =
 /* spedo_id  0,    1,    2 */
-	{ 1100, 1025, 1125 };
+	{ 1100, 1300, 1125 };
 
 static const int core_speedo_nominal_millivolts[] =
 /* spedo_id  0,    1,    2 */
@@ -55,9 +55,9 @@ static const int core_speedo_nominal_millivolts[] =
 
 static struct dvfs_rail tegra2_dvfs_rail_vdd_cpu = {
 	.reg_id = "vdd_cpu",
-	.max_millivolts = 1300, //1125
+	.max_millivolts = 1325, //1125
 	.min_millivolts = 750,
-	.nominal_millivolts = 1300, //1125
+	.nominal_millivolts = 1325, //1125
 };
 
 static struct dvfs_rail tegra2_dvfs_rail_vdd_core = {
