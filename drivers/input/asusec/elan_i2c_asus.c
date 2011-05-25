@@ -28,6 +28,7 @@ static int Public_ETP_2FT_YMAX;
 static struct timer_list console_timer;
 #define TIMEOUT_VALUE 1;
 
+extern int tapclick;
 
 static int elan_i2c_asus_cmd(struct i2c_client *client,unsigned char *param, int command)
 {
@@ -211,20 +212,19 @@ static void HandleTapProcessing(struct elantech_data *etd, edge_type edge,int fi
 
 }
 
-
 static void timertapprocessing(unsigned long data)
 {
 	struct asusec_chip *ec_chip = (struct asusec_chip *)data;
 	struct elantech_data *etd = ec_chip->private;
 	struct input_dev *dev = etd->abs_dev;
 
-	if (etd->tap_num == TP_CLICK ){
+	if (etd->tap_num == TP_CLICK && tapclick == 1){
 		input_report_key(dev, BTN_LEFT,1);
 		input_sync(dev);
 		input_report_key(dev, BTN_LEFT,0);
 		input_sync(dev);
 		etd->tap_num=NO_FINGER_ON_TOUCHPAD;
-	}else if (etd->tap_num == TP_DOUBLE_CLICK){
+	}else if (etd->tap_num == TP_DOUBLE_CLICK && tapclick == 1){
 		input_report_key(dev, BTN_LEFT,1);
 		input_sync(dev);
 		input_report_key(dev, BTN_LEFT,0);
@@ -233,6 +233,8 @@ static void timertapprocessing(unsigned long data)
 		input_sync(dev);
 		input_report_key(dev, BTN_LEFT,0);
 		input_sync(dev);
+		etd->tap_num=NO_FINGER_ON_TOUCHPAD;
+	}else {
 		etd->tap_num=NO_FINGER_ON_TOUCHPAD;
 	}
 

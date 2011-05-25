@@ -152,6 +152,28 @@ static struct i2c_driver asusec_driver = {
 	.id_table = asusec_id,
 };
 
+/* tapclick toggle - netarchy*/
+int tapclick = 1;
+
+static ssize_t tap_click_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", tapclick);
+}
+
+static ssize_t tap_click_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned ret;
+	ret = sscanf(buf, "%d", &tapclick);
+	if(ret != 1)
+	{
+		return -EINVAL;
+	}
+	
+	return count;
+}
+
+DEVICE_ATTR(tap_toggle, 0666, tap_click_show, tap_click_store);
+/* end tapclick toggle - netarchy */
 
 static DEVICE_ATTR(ec_status, S_IWUSR | S_IRUGO, asusec_show,NULL);
 static DEVICE_ATTR(ec_info, S_IWUSR | S_IRUGO, asusec_info_show,NULL);
@@ -171,6 +193,7 @@ static struct attribute *asusec_smbus_attributes[] = {
 	&dev_attr_ec_wakeup.attr,
 	&dev_attr_ec_dock_discharge.attr,
 	&dev_attr_ec_dock_battery.attr,
+	&dev_attr_tap_toggle.attr,
 	&dev_attr_ec_dock_battery_all.attr,
 	&dev_attr_ec_dock_control_flag.attr,
 NULL
