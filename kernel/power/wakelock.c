@@ -19,6 +19,8 @@
 #include <linux/suspend.h>
 #include <linux/syscalls.h> /* sys_sync */
 #include <linux/wakelock.h>
+#include <mach/gpio.h>
+#include "../../arch/arm/mach-tegra/gpio-names.h"
 #ifdef CONFIG_WAKELOCK_STAT
 #include <linux/proc_fs.h>
 #endif
@@ -261,10 +263,17 @@ long has_wake_lock(int type)
 struct timer_list suspend_timer;
 extern void watchdog_enable(int sec);
 extern void watchdog_disable(void);
+int suspend_process_going=0;
+extern void auto_dump_kernel_log(void);
+extern void clean_iram_log(char *string);
+static int wake_unlock_loop=0;
+extern  struct device *temp_dev;
 void suspend_worker_timeout(unsigned long data)
 {
-	printk(KERN_EMERG "**** suspend_worker_timeout\n");
+	printk(KERN_EMERG "**** suspend_worker_timeout wake_unlock_loop=%u\n",wake_unlock_loop);
 	watchdog_disable();
+	if(temp_dev)
+	printk("dpm_complete stay on : %s\n",dev_name(temp_dev) );
 	BUG();
 }
 static void suspend(struct work_struct *work)
@@ -290,10 +299,16 @@ static void suspend(struct work_struct *work)
 	suspend_timer.function = suspend_worker_timeout;
 	add_timer(&suspend_timer);
 	watchdog_enable(11);
+	suspend_process_going=1;
+	auto_dump_kernel_log();
+	disable_irq(gpio_to_irq(TEGRA_GPIO_PX5));
 	ret = pm_suspend(requested_suspend_state);
+	enable_irq(gpio_to_irq(TEGRA_GPIO_PX5));
+	suspend_process_going=0;
 	watchdog_disable();
 	del_timer_sync(&suspend_timer);
 	destroy_timer_on_stack(&suspend_timer);
+	clean_iram_log("exit suspend");
 	if (debug_mask & DEBUG_EXIT_SUSPEND) {
 		struct timespec ts;
 		struct rtc_time tm;
@@ -362,7 +377,11 @@ void wake_lock_init(struct wake_lock *lock, int type, const char *name)
 	if (name)
 		lock->name = name;
 	BUG_ON(!lock->name);
-
+	if(lock->flags & WAKE_LOCK_INITIALIZED){
+		pr_info("This wake_lock has been initialized before\n");
+		WARN_ON(1);
+		return;
+	}
 	if (debug_mask & DEBUG_WAKE_LOCK)
 		pr_info("wake_lock_init name=%s\n", lock->name);
 #ifdef CONFIG_WAKELOCK_STAT
@@ -386,9 +405,15 @@ EXPORT_SYMBOL(wake_lock_init);
 void wake_lock_destroy(struct wake_lock *lock)
 {
 	unsigned long irqflags;
+	spin_lock_irqsave(&list_lock, irqflags);
 	if (debug_mask & DEBUG_WAKE_LOCK)
 		pr_info("wake_lock_destroy name=%s\n", lock->name);
-	spin_lock_irqsave(&list_lock, irqflags);
+	if(!(lock->flags & WAKE_LOCK_INITIALIZED)){
+		pr_info("This wake_lock has not been initialized before\n");
+		WARN_ON(1);
+		spin_unlock_irqrestore(&list_lock, irqflags);
+		return;
+	}
 	lock->flags &= ~WAKE_LOCK_INITIALIZED;
 #ifdef CONFIG_WAKELOCK_STAT
 	if (lock->stat.count) {
@@ -420,7 +445,12 @@ static void wake_lock_internal(
 	spin_lock_irqsave(&list_lock, irqflags);
 	type = lock->flags & WAKE_LOCK_TYPE_MASK;
 	BUG_ON(type >= WAKE_LOCK_TYPE_COUNT);
-	BUG_ON(!(lock->flags & WAKE_LOCK_INITIALIZED));
+	if(!(lock->flags & WAKE_LOCK_INITIALIZED)){
+		pr_info("wake_lock_internal:this wake_lock has not been initialized\n");
+		WARN_ON(1);
+		spin_unlock_irqrestore(&list_lock, irqflags);
+		return;
+	}
 #ifdef CONFIG_WAKELOCK_STAT
 	if (type == WAKE_LOCK_SUSPEND && wait_for_wakeup) {
 		if (debug_mask & DEBUG_WAKEUP)
@@ -505,6 +535,12 @@ void wake_unlock(struct wake_lock *lock)
 	unsigned long irqflags;
 	char buffer[128]={0};
 	spin_lock_irqsave(&list_lock, irqflags);
+	if(!(lock->flags & WAKE_LOCK_INITIALIZED)){
+		pr_info("Cannot unlock, wake_lock has not been initialized\n");
+		WARN_ON(1);
+		spin_unlock_irqrestore(&list_lock, irqflags);
+		return;
+	}
 	type = lock->flags & WAKE_LOCK_TYPE_MASK;
 #ifdef CONFIG_WAKELOCK_STAT
 	wake_unlock_stat_locked(lock, 0);
@@ -529,7 +565,15 @@ void wake_unlock(struct wake_lock *lock)
 					pr_info("wake_unlock: %s, stop expire "
 						"timer\n", lock->name);
 			if (has_lock == 0){
+				if(suspend_process_going){
+					wake_unlock_loop++;
+					if( ( wake_unlock_loop >= 2000 ) || (wake_unlock_loop == 1 ) ){
 				printk("wake_unlock %s queue suspend work\n",buffer);
+						wake_unlock_loop=0;
+					}
+				}
+				else
+					wake_unlock_loop=0;
 				queue_work(suspend_work_queue, &suspend_work);
 			}
 		}

@@ -34,6 +34,8 @@
 #include <mach/iovmm.h>
 #include <mach/nvmap.h>
 
+#include <linux/slab.h>
+
 #include "nvmap.h"
 #include "nvmap_mru.h"
 
@@ -698,6 +700,7 @@ void nvmap_munmap(struct nvmap_handle_ref *ref, void *addr)
 		addr -= (h->carveout->base & ~PAGE_MASK);
 		vm = remove_vm_area(addr);
 		BUG_ON(!vm);
+		kfree(vm);
 		nvmap_usecount_dec(h);
 	}
 	nvmap_handle_put(h);

@@ -24,6 +24,50 @@
 #include <linux/suspend.h>
 #include <linux/smp.h>
 #include "power.h"
+#include <mach/iomap.h>
+
+#define TIMER_PTV	0x0
+#define TIMER_EN	(1 << 31)
+#define TIMER_PERIODIC	(1 << 30)
+
+#define TIMER_PCR	0x4
+#define TIMER_PCR_INTR	(1 << 30)
+
+#define WDT_EN		(1 << 5)
+#define WDT_SEL_TMR1	(0 << 4)
+#define WDT_SYS_RST	(1 << 2)
+
+
+static void __iomem *watchdog_timer  = IO_ADDRESS(TEGRA_TMR1_BASE);
+static void __iomem *watchdog_source = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
+ void watchdog_enable(int sec)
+{
+	u32 val;
+       printk("watchdog_enable\n");
+	val = sec* 1000000ul;
+	val |= (TIMER_EN | TIMER_PERIODIC);
+	writel(val, watchdog_timer + TIMER_PTV);
+
+	val = WDT_EN | WDT_SEL_TMR1 | WDT_SYS_RST;
+	writel(val, watchdog_source);
+}
+
+void watchdog_disable(void)
+{
+       printk("watchdog_disable\n");
+	writel(0, watchdog_source);
+	writel(0, watchdog_timer + TIMER_PTV);
+	writel(TIMER_PCR_INTR, watchdog_timer + TIMER_PCR);
+}
+static void disable_nonboot_cpus_timeout(unsigned long data)
+{
+	printk(KERN_EMERG "**** disable_nonboot_cpus_timeout\n");
+	watchdog_disable();
+	BUG();
+}
+int suspend_enter_flag=0;
+extern struct timer_list suspend_timer;
+extern  void suspend_worker_timeout(unsigned long data);
 
 const char *const pm_states[PM_SUSPEND_MAX] = {
 #ifdef CONFIG_EARLYSUSPEND
@@ -102,8 +146,25 @@ static int suspend_prepare(void)
 	error = usermodehelper_disable();
 	if (error)
 		goto Finish;
+	watchdog_disable();
+	del_timer_sync(&suspend_timer);
+	destroy_timer_on_stack(&suspend_timer);
+	init_timer_on_stack(&suspend_timer);
+	suspend_timer.expires = jiffies + HZ * 42;
+	suspend_timer.function = suspend_worker_timeout;
+	add_timer(&suspend_timer);
+	watchdog_enable(44);
 
 	error = suspend_freeze_processes();
+	watchdog_disable();
+	del_timer_sync(&suspend_timer);
+	destroy_timer_on_stack(&suspend_timer);
+	init_timer_on_stack(&suspend_timer);
+	suspend_timer.expires = jiffies + HZ * 9;
+	suspend_timer.function = suspend_worker_timeout;
+	add_timer(&suspend_timer);
+	watchdog_enable(11);
+
 	if (!error)
 		return 0;
 
@@ -133,49 +194,6 @@ void __attribute__ ((weak)) arch_suspend_enable_irqs(void)
  *
  *	This function should be called after devices have been suspended.
  */
-
-#include <mach/iomap.h>
-
-#define TIMER_PTV	0x0
-#define TIMER_EN	(1 << 31)
-#define TIMER_PERIODIC	(1 << 30)
-
-#define TIMER_PCR	0x4
-#define TIMER_PCR_INTR	(1 << 30)
-
-#define WDT_EN		(1 << 5)
-#define WDT_SEL_TMR1	(0 << 4)
-#define WDT_SYS_RST	(1 << 2)
-
-
-static void __iomem *watchdog_timer  = IO_ADDRESS(TEGRA_TMR1_BASE);
-static void __iomem *watchdog_source = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
- void watchdog_enable(int sec)
-{
-	u32 val;
-       printk("watchdog_enable\n");
-	val = sec* 1000000ul;
-	val |= (TIMER_EN | TIMER_PERIODIC);
-	writel(val, watchdog_timer + TIMER_PTV);
-
-	val = WDT_EN | WDT_SEL_TMR1 | WDT_SYS_RST;
-	writel(val, watchdog_source);
-}
-
-void watchdog_disable(void)
-{
-       printk("watchdog_disable\n");
-	writel(0, watchdog_source);
-	writel(0, watchdog_timer + TIMER_PTV);
-	writel(TIMER_PCR_INTR, watchdog_timer + TIMER_PCR);
-}
-static void disable_nonboot_cpus_timeout(unsigned long data)
-{
-	printk(KERN_EMERG "**** disable_nonboot_cpus_timeout\n");
-	watchdog_disable();
-	BUG();
-}
- int suspend_enter_flag=0;
 static int suspend_enter(suspend_state_t state)
 {
 	int error;
@@ -229,13 +247,7 @@ static int suspend_enter(suspend_state_t state)
 	BUG_ON(irqs_disabled());
 
  Enable_cpus:
-	init_timer_on_stack(&timer);
-	timer.expires = jiffies + HZ * 2;
-	timer.function = disable_nonboot_cpus_timeout;
-	add_timer(&timer);
 	enable_nonboot_cpus();
-      del_timer_sync(&timer);
-      destroy_timer_on_stack(&timer);
  Platform_wake:
 	if (suspend_ops->wake)
 		suspend_ops->wake();
@@ -285,7 +297,9 @@ int suspend_devices_and_enter(suspend_state_t state)
 	dpm_resume_end(PMSG_RESUME);
 	suspend_test_finish("resume devices");
 	pm_restore_gfp_mask();
+	printk("PM: resume_console+\n");
 	resume_console();
+	printk("PM: resume_console-\n");
  Close:
 	if (suspend_ops->end)
 		suspend_ops->end();
@@ -305,10 +319,12 @@ int suspend_devices_and_enter(suspend_state_t state)
  */
 static void suspend_finish(void)
 {
+	printk("suspend_finish+\n");
 	suspend_thaw_processes();
 	usermodehelper_enable();
 	pm_notifier_call_chain2(PM_POST_SUSPEND);
 	pm_restore_console();
+	printk("suspend_finish-\n");
 }
 
 /**
